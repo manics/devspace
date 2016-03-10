@@ -3,7 +3,7 @@ jenkins:
     volumes:
         - ./home:/var/jenkins_home
     environment:
-        - SERVICE_NAME=SPACENAME-ci
+        - SERVICE_NAME=devspace_web-ci
 
 git:
     build: git
@@ -25,7 +25,7 @@ slave:
         - git
     environment:
         - JAVA_HOME=/etc/alternatives/java_sdk
-        - SERVICE_NAME=SPACENAME-omero
+        - SERVICE_NAME=devspace_web-omero
     ports:
         - "4064:4064"
         - "4063:4063"
@@ -37,4 +37,4 @@ nginx:
     volumes:
         - ./slave:/home/jenkins-slave
     environment:
-        - SERVICE_NAME=SPACENAME-web
+        - SERVICE_NAME=devspace_web-web
