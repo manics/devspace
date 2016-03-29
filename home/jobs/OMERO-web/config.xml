@@ -77,6 +77,8 @@ REDIS_IP=$(getent hosts 'redis' | awk '{print $1}')
 
 pip install --upgrade --no-deps --force-reinstall -r $OMERO_DIST/share/web/requirements-py27-nginx.txt
 
+pip install django-redis-cache>=1.6.5
+
 #start-config
 $OMERO_DIST/bin/omero config set omero.web.application_server &apos;wsgi-tcp&apos;
 $OMERO_DIST/bin/omero config set omero.web.application_server.max_requests 0
@@ -85,8 +87,8 @@ $OMERO_DIST/bin/omero config set omero.web.prefix &apos;/web&apos;
 $OMERO_DIST/bin/omero config set omero.web.static_url &apos;/web/static/&apos;
 $OMERO_DIST/bin/omero config set omero.web.static_root &apos;/home/omero/static/web&apos;
 
-#$OMERO_DIST/bin/omero config set omero.web.session_engine &apos;django.contrib.sessions.backends.cache&apos;
-#$OMERO_DIST/bin/omero config set omero.web.caches &apos;{&quot;default&quot;: {&quot;BACKEND&quot;: &quot;redis_cache.RedisCache&quot;,&quot;LOCATION&quot;: &quot;$REDIS_IP:6379&quot;}}&apos;
+$OMERO_DIST/bin/omero config set omero.web.session_engine &apos;django.contrib.sessions.backends.cache&apos;
+$OMERO_DIST/bin/omero config set omero.web.caches &apos;{&quot;default&quot;: {&quot;BACKEND&quot;: &quot;redis_cache.RedisCache&quot;,&quot;LOCATION&quot;: &quot;$REDIS_IP:6379&quot;}}&apos;
 
 $OMERO_DIST/bin/omero config set omero.web.application_server.host SPACENAME-ci.docker.openmicroscopy.org
 $OMERO_DIST/bin/omero config set omero.web.application_server.port 4080
