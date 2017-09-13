@@ -1,117 +1,133 @@
-jenkins:
+version: "3"
+services:
+
+  jenkins:
     build: jenkins
     user: ${USER_ID}
     volumes:
-        - ./home:/var/jenkins_home
+      #- devspace-jenkins:/var/jenkins_home
+      - ./home:/var/jenkins_home
     environment:
-        - JENKINS_OPTS= --argumentsRealm.passwd.${JENKINS_USERNAME}=${JENKINS_PASSWORD} --argumentsRealm.roles.${JENKINS_USERNAME}=admin
+      - JENKINS_OPTS= --argumentsRealm.passwd.${JENKINS_USERNAME}=${JENKINS_PASSWORD} --argumentsRealm.roles.${JENKINS_USERNAME}=admin
 
-git:
+  git:
     build: git
     volumes:
-        - /src
+      - /src
     command: 'true'
 
-pg:
+  pg:
     image: postgres
     volumes:
-        - ./pgdata:/var/lib/postgresql/data
+      - devspace-pgdata:/var/lib/postgresql/data
 
-testintegration:
-    extends:
-        file: common-services-v1.yml
-        service: baseslave
-    links:
-        - jenkins
-        - pg
-        - seleniumhub
+  testintegration:
+    build:
+      context: ./slave
+      dockerfile: Dockerfile
+      args:
+        ICEVER: ice36
     volumes:
-        - ./slave:/home/omero
+      - devspace-slave:/home/omero
     environment:
-        - SLAVE_NAME=testintegration
-        - SLAVE_PARAMS=-labels centos7 -labels ice36 -labels java18 -disableClientsUniqueId
-        - JENKINS_MASTER=http://jenkins:8080
-        # - JENKINS_USERNAME=${JENKINS_USERNAME}
-        # - JENKINS_PASSWORD=${JENKINS_PASSWORD}
-    extra_hosts:
-        - "testintegration:127.0.0.1"
+      - SLAVE_NAME=testintegration
+      - SLAVE_EXECUTORS=2
+      - SLAVE_PARAMS=-labels centos7 -labels ice36 -labels java18 -disableClientsUniqueId
+      - WEB_PREFIX=/web
+      - JENKINS_MASTER=http://jenkins:8080
+      # - JENKINS_USERNAME=${JENKINS_USERNAME}
+      # - JENKINS_PASSWORD=${JENKINS_PASSWORD}
+    links:
+      - jenkins
+      - pg
+      - seleniumhub
+    #extra_hosts:
+    #  - "testintegration:127.0.0.1"
     ports:
-        - "14064:14064"
-        - "14063:14063"
+      - "14064"
+      - "14063"
 
-omero:
-    extends:
-        file: common-services-v1.yml
-        service: baseserver
-    links:
-        - jenkins
-        - pg
+  omero:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        ICEVER: ice36
     volumes:
-        - ./server:/home/omero
+      - devspace-server:/home/omero
     environment:
-        - SLAVE_NAME=omero
-        - SLAVE_PARAMS=-labels centos7 -labels ice36 -labels java18 -disableClientsUniqueId
-        - JENKINS_MASTER=http://jenkins:8080
-        # - JENKINS_USERNAME=${JENKINS_USERNAME}
-        # - JENKINS_PASSWORD=${JENKINS_PASSWORD}
+      - SLAVE_NAME=omero
+      - SLAVE_EXECUTORS=2
+      - SLAVE_PARAMS=-labels centos7 -labels ice36 -labels java18 -disableClientsUniqueId
+      - JENKINS_MASTER=http://jenkins:8080
+      # - JENKINS_USERNAME=${JENKINS_USERNAME}
+      # - JENKINS_PASSWORD=${JENKINS_PASSWORD}
+    links:
+      - jenkins
+      - pg
     ports:
-        - "4064:4064"
-        - "4063:4063"
+      - "4064"
+      - "4063"
 
-web:
-    extends:
-        file: common-services-v1.yml
-        service: baseweb
-    links:
-        - jenkins
-        - redis
-        - omero
-        - testintegration
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        ICEVER: noice
     volumes:
-        - ./web:/home/omero
-        - ./nginx/conf.d:/home/omero/nginx
+      - devspace-web:/home/omero
+      - devspace-nginxconfd:/home/omero/nginx
     environment:
-        - SLAVE_NAME=web
-        - SLAVE_PARAMS= -labels centos7 -labels ice36 -labels java18 -disableClientsUniqueId
-        - JENKINS_MASTER=http://jenkins:8080
-        # - JENKINS_USERNAME=${JENKINS_USERNAME}
-        # - JENKINS_PASSWORD=${JENKINS_PASSWORD}
+      - SLAVE_NAME=web
+      - SLAVE_EXECUTORS=2
+      - SLAVE_PARAMS= -labels centos7 -labels ice36 -labels java18 -disableClientsUniqueId
+      - JENKINS_MASTER=http://jenkins:8080
+      # - JENKINS_USERNAME=${JENKINS_USERNAME}
+      # - JENKINS_PASSWORD=${JENKINS_PASSWORD}
+      - WEB_PREFIX=/web
+    links:
+      - jenkins
+      - redis
+      - omero
+      - testintegration
 
-nginx:
-    extends:
-        file: common-services-v1.yml
-        service: basenginx
-    links:
-        - jenkins
-        - web
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
     volumes:
-        - ./nginx/conf.d:/etc/nginx/conf.d
-        - ./web/static:/home/omero/static
-        - ./nginx/log:/var/log/nginx
-        - ./nginx/sslcert:/etc/nginx/ssl
+      - devspace-nginxconfd:/etc/nginx/conf.d
+      - devspace-web:/home/omero
+      - devspace-nginxlog:/var/log/nginx
+      - ./nginx/sslcert:/etc/nginx/ssl:ro
     environment:
-        - SLAVE_NAME=nginx
-        - SLAVE_PARAMS=-labels centos7 -labels java18 -disableClientsUniqueId
-        - JENKINS_MASTER=http://jenkins:8080
-        # - JENKINS_USERNAME=${JENKINS_USERNAME}
-        # - JENKINS_PASSWORD=${JENKINS_PASSWORD}
+      - SLAVE_NAME=nginx
+      - SLAVE_PARAMS=-labels centos7 -labels java -disableClientsUniqueId
+      - JENKINS_MASTER=http://jenkins:8080
+      # - JENKINS_USERNAME=${JENKINS_USERNAME}
+      # - JENKINS_PASSWORD=${JENKINS_PASSWORD}
+    links:
+      - jenkins
+      - web
     ports:
-        - "80:80"
-        - "443:443"
+      - "80"
+      - "443"
 
-nginxjenkins:
+  nginxjenkins:
     image: nginx:1.10
     links:
-        - jenkins
+      - jenkins
     volumes:
-        - ./jenkins/conf.d:/etc/nginx/conf.d
-        - ./jenkins/sslcert:/etc/nginx/ssl
+      - ./jenkins/conf.d:/etc/nginx/conf.d:ro
+      - ./jenkins/sslcert:/etc/nginx/ssl:ro
     ports:
-        - "8443:443"
-redis:
+      - "443"
+
+  redis:
     image: redis
 
-seleniumhub:
+  seleniumhub:
     image: selenium/hub:3.0.0-dubnium
     environment:
         - GRID_BROWSER_TIMEOUT=60
@@ -121,16 +137,26 @@ seleniumhub:
 #    volumes:
 #        - /dev/urandom:/dev/random
     ports:
-        - "4444:4444"
-seleniumfirefox:
+      - "4444"
+
+  seleniumfirefox:
     image: selenium/node-firefox:3.0.0-dubnium
     links:
         - seleniumhub:hub
 #    volumes:
 #        - /dev/shm:/dev/shm
-seleniumchrome:
+
+  seleniumchrome:
     image: selenium/node-chrome:3.0.0-dubnium
     links:
         - seleniumhub:hub
 #    volumes:
 #        - /dev/shm:/dev/shm
+
+volumes:
+  devspace-pgdata:
+  devspace-slave:
+  devspace-server:
+  devspace-web:
+  devspace-nginxconfd:
+  devspace-nginxlog:
